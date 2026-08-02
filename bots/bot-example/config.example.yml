@@ -1,0 +1,8 @@
+profile_id: "example_profile_id"
+cookie: "your_cookie_here"
+enable: true
+auto_start: false
+begin_time: "09:00"
+end_time: "18:00"
+len_of_deque: 5
+enable_dynamic_check: true

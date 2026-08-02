@@ -1,0 +1,20 @@
+.env
+*.tmp
+*.pyc
+__pycache__/
+.venv/
+backend/dist/
+backend/logs/
+backend/node_modules/
+frontend/build/
+frontend/node_modules/
+logs/*.log
+data/weibo-profile/*
+!data/weibo-profile/.gitkeep
+
+# Runtime bot instances and private AIO cookies are host data.
+bots/*/
+!bots/bot-example/
+!bots/bot-example/**
+bots/bot-example/aio-config.yml
+bots/bot-example/config.yml

@@ -1,0 +1,21 @@
+name: Notification Manager
+version: '1.0'
+description: Default configuration for notification bots
+
+bots:
+  - name: ExampleBot
+    enabled: true
+    config_file: "bots/bot-example/config.yml"
+    restart_policy: always
+
+logging:
+  level: info
+  file: logs/notification_manager.log
+
+server:
+  host: 0.0.0.0
+  port: 4000
+
+notifications:
+  method: webhook
+  endpoint: "https://your-webhook-url.com/notify"
