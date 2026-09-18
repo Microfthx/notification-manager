@@ -54,3 +54,13 @@ export const weiboQrLoginWorkerPath = resolveConfiguredPath(
     process.env.WEIBO_QR_LOGIN_WORKER_PATH,
     path.resolve(__dirname, '../../workers/weibo_qr_login.py'),
 );
+
+export const napcatConfigRoot = resolveConfiguredPath(
+    process.env.NAPCAT_CONFIG_ROOT,
+    path.join(projectRoot, 'data', 'napcat-config'),
+);
+
+export const napcatAlertWorkerPath = resolveConfiguredPath(
+    process.env.NAPCAT_ALERT_WORKER_PATH,
+    path.resolve(__dirname, '../../workers/napcat_alert.py'),
+);

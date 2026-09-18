@@ -2,13 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
     createBot,
+    cancelNapCatQrLogin,
     cancelWeiboQrLogin,
     fetchAioConfig,
     fetchBotsStatus,
+    fetchNapCatStatus,
     fetchWeiboSessionStatus,
     getBotConfig,
+    checkNapCatStatus,
     restartBot,
     startBot,
+    startNapCatQrLogin,
     startWeiboQrLogin,
     stopBot,
     syncWeiboSession,
@@ -18,7 +22,7 @@ import {
 import BotList from '../components/BotList';
 import AioConfigForm from '../components/AioConfigForm';
 import { useI18n } from '../i18n';
-import { BotConfig, BotStatus, WeiboSessionStatus } from '../types';
+import { BotConfig, BotStatus, NapCatStatus, WeiboSessionStatus } from '../types';
 
 const Dashboard: React.FC = () => {
     const { t } = useI18n();
@@ -37,6 +41,9 @@ const Dashboard: React.FC = () => {
     const [syncingWeibo, setSyncingWeibo] = useState<boolean>(false);
     const [weiboSessionError, setWeiboSessionError] = useState<string | null>(null);
     const [updatingAutoStartIds, setUpdatingAutoStartIds] = useState<string[]>([]);
+    const [napcat, setNapcat] = useState<NapCatStatus | null>(null);
+    const [checkingNapcat, setCheckingNapcat] = useState<boolean>(false);
+    const [napcatError, setNapcatError] = useState<string | null>(null);
 
     useEffect(() => {
         const loadBotsStatus = async () => {
@@ -94,6 +101,36 @@ const Dashboard: React.FC = () => {
         const timer = window.setInterval(loadWeiboSession, 60000);
         return () => window.clearInterval(timer);
     }, [t]);
+
+    useEffect(() => {
+        const loadNapcat = async () => {
+            try {
+                setNapcat(await fetchNapCatStatus());
+                setNapcatError(null);
+            } catch (err) {
+                setNapcatError(t('napcat.errorLoad'));
+            }
+        };
+
+        loadNapcat();
+        const timer = window.setInterval(loadNapcat, 10000);
+        return () => window.clearInterval(timer);
+    }, [t]);
+
+    useEffect(() => {
+        const state = napcat?.qrLogin.state;
+        if (!state || !['restarting', 'waiting', 'scanned'].includes(state)) {
+            return undefined;
+        }
+        const timer = window.setInterval(async () => {
+            try {
+                setNapcat(await fetchNapCatStatus());
+            } catch (err) {
+                setNapcatError(t('napcat.errorLoad'));
+            }
+        }, 2000);
+        return () => window.clearInterval(timer);
+    }, [napcat?.qrLogin.state, t]);
 
     useEffect(() => {
         const loadAioConfig = async () => {
@@ -263,12 +300,44 @@ const Dashboard: React.FC = () => {
         }
     };
 
+    const handleCheckNapcat = async () => {
+        try {
+            setCheckingNapcat(true);
+            setNapcatError(null);
+            setNapcat(await checkNapCatStatus());
+        } catch (err) {
+            setNapcatError(t('napcat.errorCheck'));
+        } finally {
+            setCheckingNapcat(false);
+        }
+    };
+
+    const handleStartNapcatQrLogin = async () => {
+        try {
+            setNapcatError(null);
+            setNapcat(await startNapCatQrLogin());
+        } catch (err) {
+            setNapcatError(t('napcat.qrError'));
+        }
+    };
+
+    const handleCancelNapcatQrLogin = async () => {
+        try {
+            setNapcat(await cancelNapCatQrLogin());
+            setNapcatError(null);
+        } catch (err) {
+            setNapcatError(t('napcat.qrError'));
+        }
+    };
+
     const formatSessionTime = (value: string | null | undefined) => (
         value ? new Date(value).toLocaleString() : t('weiboSession.never')
     );
 
     const qrState = weiboSession?.qrLogin?.state ?? 'idle';
     const qrActive = ['preparing', 'waiting', 'scanned'].includes(qrState);
+    const napcatQrState = napcat?.qrLogin.state ?? 'idle';
+    const napcatQrActive = ['restarting', 'waiting', 'scanned'].includes(napcatQrState);
 
     if (loading) {
         return <div className="page"><div className="loading-state">{t('common.loading')}</div></div>;
@@ -331,6 +400,74 @@ const Dashboard: React.FC = () => {
                         </div>
                     </div>
                 </div>
+            </section>
+
+            <section className="card napcat-card">
+                <div className="section-header">
+                    <div>
+                        <div className="section-copy">{t('napcat.eyebrow')}</div>
+                        <div className="section-title">{t('napcat.title')}</div>
+                        <div className="stat-note">{t('napcat.description')}</div>
+                    </div>
+                    <div className="status-pill">
+                        <span className={`status-dot ${napcat?.state === 'online' ? 'good' : napcat?.state === 'checking' ? 'warn' : 'bad'}`} />
+                        {t(`napcat.state.${napcat?.state ?? 'checking'}`)}
+                    </div>
+                </div>
+                <div className="napcat-status-grid">
+                    <div className="mini-card napcat-identity">
+                        <div className="napcat-avatar" aria-hidden="true">QQ</div>
+                        <div>
+                            <h3>{napcat?.nickname || t('common.unknown')}</h3>
+                            <div className="muted">{napcat?.accountId || t('napcat.accountUnknown')}</div>
+                            <div className="stat-note">NapCat {napcat?.version || '-'}</div>
+                        </div>
+                    </div>
+                    <div className="mini-card">
+                        <h3>{t('napcat.lastOnline')}</h3>
+                        <div className="muted">{formatSessionTime(napcat?.lastOnlineAt)}</div>
+                        <div className="stat-note">{t('napcat.failedChecks')}: {napcat?.consecutiveFailures ?? 0}</div>
+                    </div>
+                </div>
+                <div className="mini-card" style={{ marginTop: 14 }}>
+                    <div className="section-header">
+                        <div>
+                            <h3>{t('napcat.deliveryStatus')}</h3>
+                            <div className="muted">{napcat?.message ?? t('napcat.waiting')}</div>
+                            {napcatError ? <div className="stat-note napcat-error-copy">{napcatError}</div> : null}
+                        </div>
+                        <div className="btn-row">
+                            <button className="btn btn-ghost" type="button" onClick={handleCheckNapcat} disabled={checkingNapcat || napcatQrActive}>
+                                {checkingNapcat ? t('napcat.checking') : t('napcat.checkNow')}
+                            </button>
+                            <button className="btn btn-primary" type="button" onClick={handleStartNapcatQrLogin} disabled={napcatQrActive || napcat?.online === true}>
+                                {t('napcat.qrStart')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {napcatQrState !== 'idle' ? (
+                    <div className={`weibo-qr-panel napcat-qr-panel weibo-qr-${napcatQrState}`}>
+                        <div className="weibo-qr-copy">
+                            <div className="section-copy">{t('napcat.qrEyebrow')}</div>
+                            <h3>{t(`napcat.qrState.${napcatQrState}`)}</h3>
+                            <p className="muted">{napcat?.qrLogin.message}</p>
+                            {napcat?.qrLogin.expiresAt ? (
+                                <div className="stat-note">{t('napcat.qrExpires')}: {formatSessionTime(napcat.qrLogin.expiresAt)}</div>
+                            ) : null}
+                            {napcatQrActive ? (
+                                <button className="btn btn-ghost" type="button" onClick={handleCancelNapcatQrLogin}>{t('napcat.qrCancel')}</button>
+                            ) : napcat?.online ? null : (
+                                <button className="btn btn-primary" type="button" onClick={handleStartNapcatQrLogin}>{t('napcat.qrRetry')}</button>
+                            )}
+                        </div>
+                        {napcat?.qrLogin.imageDataUrl ? (
+                            <div className="weibo-qr-frame"><img src={napcat.qrLogin.imageDataUrl} alt={t('napcat.qrAlt')} /></div>
+                        ) : (
+                            <div className="weibo-qr-placeholder">{t(`napcat.qrState.${napcatQrState}`)}</div>
+                        )}
+                    </div>
+                ) : null}
             </section>
 
             <section className="card">

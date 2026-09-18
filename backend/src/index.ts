@@ -3,8 +3,10 @@ import bodyParser from 'body-parser';
 import { AioConfigController } from './controllers/aioConfigController';
 import { BotsController } from './controllers/botsController';
 import { WeiboSessionController } from './controllers/weiboSessionController';
+import { NapCatController } from './controllers/napcatController';
 import { BotManager } from './services/botManager';
 import { WeiboSessionService } from './services/weiboSessionService';
+import { NapCatService } from './services/napcatService';
 import { Logger } from './utils/logger';
 
 const app = express();
@@ -25,6 +27,8 @@ const botsController = new BotsController(logger, botManager);
 const aioConfigController = new AioConfigController(logger);
 const weiboSessionService = new WeiboSessionService(botManager, logger);
 const weiboSessionController = new WeiboSessionController(weiboSessionService);
+const napcatService = new NapCatService(botManager, logger);
+const napcatController = new NapCatController(napcatService);
 
 app.options('*', (_, res) => res.sendStatus(204));
 
@@ -43,9 +47,14 @@ app.get('/api/weibo-session', (req, res) => weiboSessionController.getStatus(req
 app.post('/api/weibo-session/sync', (req, res) => void weiboSessionController.sync(req, res));
 app.post('/api/weibo-session/qr-login', (req, res) => weiboSessionController.startQrLogin(req, res));
 app.delete('/api/weibo-session/qr-login', (req, res) => weiboSessionController.cancelQrLogin(req, res));
+app.get('/api/napcat', (req, res) => napcatController.getStatus(req, res));
+app.post('/api/napcat/check', (req, res) => void napcatController.checkNow(req, res));
+app.post('/api/napcat/qr-login', (req, res) => void napcatController.startQrLogin(req, res));
+app.delete('/api/napcat/qr-login', (req, res) => napcatController.cancelQrLogin(req, res));
 
 app.listen(port, () => {
     logger.info(`Server is running on http://localhost:${port}`);
     botManager.startAutoStartMonitor();
     weiboSessionService.start();
+    napcatService.start();
 });

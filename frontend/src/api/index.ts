@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { BotConfig, BotStatus, WeiboSessionStatus } from '../types';
+import { BotConfig, BotStatus, NapCatStatus, WeiboSessionStatus } from '../types';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '/api';
 
@@ -96,5 +96,25 @@ export const startWeiboQrLogin = async (): Promise<WeiboSessionStatus> => {
 
 export const cancelWeiboQrLogin = async (): Promise<WeiboSessionStatus> => {
     const response = await axios.delete(`${API_BASE_URL}/weibo-session/qr-login`);
+    return response.data;
+};
+
+export const fetchNapCatStatus = async (): Promise<NapCatStatus> => {
+    const response = await axios.get(`${API_BASE_URL}/napcat`);
+    return response.data;
+};
+
+export const checkNapCatStatus = async (): Promise<NapCatStatus> => {
+    const response = await axios.post(`${API_BASE_URL}/napcat/check`);
+    return response.data;
+};
+
+export const startNapCatQrLogin = async (): Promise<NapCatStatus> => {
+    const response = await axios.post(`${API_BASE_URL}/napcat/qr-login`);
+    return response.data;
+};
+
+export const cancelNapCatQrLogin = async (): Promise<NapCatStatus> => {
+    const response = await axios.delete(`${API_BASE_URL}/napcat/qr-login`);
     return response.data;
 };

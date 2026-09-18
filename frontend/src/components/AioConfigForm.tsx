@@ -106,6 +106,11 @@ const channelTypes = [
     'email',
 ];
 
+const firstEnabledIndex = (items: Array<{ enable: boolean }>): number => {
+    const enabledIndex = items.findIndex((item) => item.enable);
+    return enabledIndex >= 0 ? enabledIndex : 0;
+};
+
 const emptyDraft = (): AioConfigDraft => ({
     common: {
         proxy_pool: {
@@ -405,19 +410,29 @@ const denormalizePushChannel = (channel: PushChannelDraft): Record<string, unkno
     return { ...result, ...typeFields };
 };
 
-const serializeConfig = (draft: AioConfigDraft): Record<string, unknown> => ({
-    common: {
-        proxy_pool: {
-            enable: draft.common.proxy_pool.enable,
-            proxy_pool_url: draft.common.proxy_pool.proxy_pool_url,
+const serializeConfig = (draft: AioConfigDraft): Record<string, unknown> => {
+    const enabledChannelNames = new Set(
+        draft.push_channel
+            .filter((channel) => channel.enable && channel.name.trim().length > 0)
+            .map((channel) => channel.name.trim())
+    );
+    return {
+        common: {
+            proxy_pool: {
+                enable: draft.common.proxy_pool.enable,
+                proxy_pool_url: draft.common.proxy_pool.proxy_pool_url,
+            },
+            push_channel: {
+                send_test_msg_when_start: draft.common.push_channel.send_test_msg_when_start,
+            },
         },
-        push_channel: {
-            send_test_msg_when_start: draft.common.push_channel.send_test_msg_when_start,
-        },
-    },
-    query_task: draft.query_task.map(denormalizeQueryTask),
-    push_channel: draft.push_channel.map(denormalizePushChannel),
-});
+        query_task: draft.query_task.map((task) => denormalizeQueryTask({
+            ...task,
+            target_push_name_list: task.target_push_name_list.filter((name) => enabledChannelNames.has(name)),
+        })),
+        push_channel: draft.push_channel.map(denormalizePushChannel),
+    };
+};
 
 const arrayToText = (items: string[]) => items.join('\n');
 
@@ -548,14 +563,71 @@ const ItemListEditor: React.FC<ItemListEditorProps> = ({ label, value, onChange,
     );
 };
 
+type PushChannelSelectorProps = {
+    channels: Array<{ name: string; type: string }>;
+    value: string[];
+    onChange: (next: string[]) => void;
+    label: string;
+    hint: string;
+    emptyText: string;
+};
+
+const PushChannelSelector: React.FC<PushChannelSelectorProps> = ({
+    channels,
+    value,
+    onChange,
+    label,
+    hint,
+    emptyText,
+}) => (
+    <Field label={label} hint={hint} wide>
+        {channels.length === 0 ? (
+            <div className="aio-channel-empty">{emptyText}</div>
+        ) : (
+            <div className="aio-channel-options">
+                {channels.map((channel) => {
+                    const checked = value.includes(channel.name);
+                    return (
+                        <label className={`aio-channel-option${checked ? ' is-selected' : ''}`} key={channel.name}>
+                            <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(event) => onChange(
+                                    event.target.checked
+                                        ? [...value.filter((name) => name !== channel.name), channel.name]
+                                        : value.filter((name) => name !== channel.name)
+                                )}
+                            />
+                            <span className="aio-channel-check" aria-hidden="true">{checked ? '✓' : ''}</span>
+                            <span className="aio-channel-option-copy">
+                                <strong>{channel.name}</strong>
+                                <small>{channel.type}</small>
+                            </span>
+                        </label>
+                    );
+                })}
+            </div>
+        )}
+    </Field>
+);
+
 const AioConfigForm: React.FC<AioConfigFormProps> = ({ config, sourcePath, botId, onUpdate }) => {
     const { t } = useI18n();
     const [draft, setDraft] = useState<AioConfigDraft>(() => normalizeConfig(config));
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [selectedTaskIndex, setSelectedTaskIndex] = useState(() => (
+        firstEnabledIndex(normalizeConfig(config).query_task)
+    ));
+    const [selectedChannelIndex, setSelectedChannelIndex] = useState(() => (
+        firstEnabledIndex(normalizeConfig(config).push_channel)
+    ));
 
     useEffect(() => {
-        setDraft(normalizeConfig(config));
+        const nextDraft = normalizeConfig(config);
+        setDraft(nextDraft);
+        setSelectedTaskIndex(firstEnabledIndex(nextDraft.query_task));
+        setSelectedChannelIndex(firstEnabledIndex(nextDraft.push_channel));
     }, [config]);
 
     const summary = useMemo(
@@ -566,6 +638,28 @@ const AioConfigForm: React.FC<AioConfigFormProps> = ({ config, sourcePath, botId
         [draft.query_task.length, draft.push_channel.length]
     );
 
+    const enabledPushChannels = useMemo(() => {
+        const uniqueChannels = new Map<string, { name: string; type: string }>();
+        draft.push_channel.forEach((channel) => {
+            const name = channel.name.trim();
+            if (channel.enable && name.length > 0 && !uniqueChannels.has(name)) {
+                uniqueChannels.set(name, { name, type: channel.type });
+            }
+        });
+        return Array.from(uniqueChannels.values());
+    }, [draft.push_channel]);
+
+    const selectedTask = draft.query_task[selectedTaskIndex];
+    const selectedChannel = draft.push_channel[selectedChannelIndex];
+
+    const itemStatusLabel = (enabled: boolean) => (
+        enabled ? t('aio.itemEnabled') : t('aio.itemDisabled')
+    );
+
+    const itemName = (name: string, fallback: string, index: number) => (
+        name.trim() || `${fallback} ${index + 1}`
+    );
+
     const updateTask = (index: number, updater: (current: QueryTaskDraft) => QueryTaskDraft) => {
         setDraft((current) => ({
             ...current,
@@ -574,10 +668,85 @@ const AioConfigForm: React.FC<AioConfigFormProps> = ({ config, sourcePath, botId
     };
 
     const updateChannel = (index: number, updater: (current: PushChannelDraft) => PushChannelDraft) => {
+        setDraft((current) => {
+            const previousChannel = current.push_channel[index];
+            const nextChannels = current.push_channel.map((channel, channelIndex) => (
+                channelIndex === index ? updater(channel) : channel
+            ));
+            const nextChannel = nextChannels[index];
+            const enabledNames = new Set(
+                nextChannels
+                    .filter((channel) => channel.enable && channel.name.trim().length > 0)
+                    .map((channel) => channel.name.trim())
+            );
+            const previousName = previousChannel?.name.trim() ?? '';
+            const nextName = nextChannel?.name.trim() ?? '';
+
+            return {
+                ...current,
+                push_channel: nextChannels,
+                query_task: current.query_task.map((task) => ({
+                    ...task,
+                    target_push_name_list: task.target_push_name_list
+                        .map((name) => (
+                            previousName.length > 0
+                            && name === previousName
+                            && nextChannel?.enable
+                            && nextName.length > 0
+                                ? nextName
+                                : name
+                        ))
+                        .filter((name, itemIndex, names) => enabledNames.has(name) && names.indexOf(name) === itemIndex),
+                })),
+            };
+        });
+    };
+
+    const addTask = () => {
+        const nextIndex = draft.query_task.length;
         setDraft((current) => ({
             ...current,
-            push_channel: current.push_channel.map((channel, channelIndex) => (channelIndex === index ? updater(channel) : channel)),
+            query_task: [
+                ...current.query_task,
+                normalizeQueryTask({ name: '', enable: false, type: 'bilibili' }),
+            ],
         }));
+        setSelectedTaskIndex(nextIndex);
+    };
+
+    const removeTask = (index: number) => {
+        setDraft((current) => ({
+            ...current,
+            query_task: current.query_task.filter((_, itemIndex) => itemIndex !== index),
+        }));
+        setSelectedTaskIndex(Math.max(0, Math.min(index, draft.query_task.length - 2)));
+    };
+
+    const addChannel = () => {
+        const nextIndex = draft.push_channel.length;
+        setDraft((current) => ({
+            ...current,
+            push_channel: [
+                ...current.push_channel,
+                normalizePushChannel({ name: '', enable: false, type: 'bark' }),
+            ],
+        }));
+        setSelectedChannelIndex(nextIndex);
+    };
+
+    const removeChannel = (index: number) => {
+        setDraft((current) => {
+            const removedName = current.push_channel[index]?.name.trim() ?? '';
+            return {
+                ...current,
+                push_channel: current.push_channel.filter((_, itemIndex) => itemIndex !== index),
+                query_task: current.query_task.map((task) => ({
+                    ...task,
+                    target_push_name_list: task.target_push_name_list.filter((name) => name !== removedName),
+                })),
+            };
+        });
+        setSelectedChannelIndex(Math.max(0, Math.min(index, draft.push_channel.length - 2)));
     };
 
     const handleSave = async () => {
@@ -1070,66 +1239,66 @@ const AioConfigForm: React.FC<AioConfigFormProps> = ({ config, sourcePath, botId
                     <button
                         className="btn btn-ghost"
                         type="button"
-                        onClick={() =>
-                            setDraft((current) => ({
-                                ...current,
-                                query_task: [
-                                    ...current.query_task,
-                                    normalizeQueryTask({
-                                        name: '',
-                                        enable: false,
-                                        type: 'bilibili',
-                                    }),
-                                ],
-                            }))
-                        }
+                        onClick={addTask}
                     >
                         {t('aio.addTask')}
                     </button>
                 </div>
 
-                <div className="aio-stack">
-                    {draft.query_task.map((task, index) => (
-                        <div className="aio-item-card" key={`${index}-${task.name}`}>
+                {draft.query_task.length ? (
+                    <div className="aio-entity-picker">
+                        <label className="aio-field-label" htmlFor="aio-task-picker">{t('aio.selectTask')}</label>
+                        <select
+                            id="aio-task-picker"
+                            className="aio-input aio-entity-select"
+                            value={selectedTaskIndex}
+                            onChange={(event) => setSelectedTaskIndex(Number(event.target.value))}
+                        >
+                            {draft.query_task.map((task, index) => (
+                                <option key={index} value={index}>
+                                    {itemName(task.name, t('aio.taskItem'), index)} · {task.type} · {itemStatusLabel(task.enable)}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                ) : <div className="aio-empty-inline">{t('aio.noTasks')}</div>}
+
+                {selectedTask ? (
+                    <div className="aio-stack">
+                        <div className="aio-item-card" key={selectedTaskIndex}>
+                            <div className="aio-item-header">
+                                <div className="aio-selected-item-title">
+                                    <strong>{itemName(selectedTask.name, t('aio.taskItem'), selectedTaskIndex)}</strong>
+                                    <span className={`aio-enable-badge ${selectedTask.enable ? 'is-enabled' : 'is-disabled'}`}>
+                                        {itemStatusLabel(selectedTask.enable)}
+                                    </span>
+                                </div>
+                                <button type="button" className="btn btn-ghost" onClick={() => removeTask(selectedTaskIndex)}>
+                                    {t('aio.remove')}
+                                </button>
+                            </div>
                             <div className="aio-field-grid">
                                 <Field label={t('aio.task.name')}>
-                                    <input className="aio-input" value={task.name} onChange={(event) => updateTask(index, (current) => ({ ...current, name: event.target.value }))} />
+                                    <input className="aio-input" value={selectedTask.name} onChange={(event) => updateTask(selectedTaskIndex, (current) => ({ ...current, name: event.target.value }))} />
                                 </Field>
                                 <Field label={t('aio.task.enable')}>
-                                    <Switch checked={task.enable} onChange={(checked) => updateTask(index, (current) => ({ ...current, enable: checked }))} />
+                                    <Switch checked={selectedTask.enable} onChange={(checked) => updateTask(selectedTaskIndex, (current) => ({ ...current, enable: checked }))} />
                                 </Field>
                             </div>
 
-                            {task.enable ? (
+                            {selectedTask.enable ? (
                                 <div className="aio-subsection">
-                                    <div className="aio-item-header">
-                                        <strong>
-                                            {t('aio.taskItem')} {index + 1}
-                                        </strong>
-                                        <button
-                                            type="button"
-                                            className="btn btn-ghost"
-                                            onClick={() =>
-                                                setDraft((current) => ({
-                                                    ...current,
-                                                    query_task: current.query_task.filter((_, itemIndex) => itemIndex !== index),
-                                                }))
-                                            }
-                                        >
-                                            {t('aio.remove')}
-                                        </button>
-                                    </div>
                                     <div className="aio-subsection-header">
                                         <div>
                                             <div className="section-copy">{t('aio.task.advanced')}</div>
                                             <div className="section-title" style={{ marginBottom: 0 }}>
-                                                {task.type}
+                                                {selectedTask.type}
                                             </div>
                                         </div>
                                     </div>
                                     <div className="aio-field-grid">
                                         <Field label={t('aio.task.type')}>
-                                            <select className="aio-input" value={task.type} onChange={(event) => updateTask(index, (current) => ({ ...current, type: event.target.value }))}>
+                                            <select className="aio-input" value={selectedTask.type} onChange={(event) => updateTask(selectedTaskIndex, (current) => ({ ...current, type: event.target.value }))}>
                                                 {taskTypes.map((type) => (
                                                     <option key={type} value={type}>
                                                         {type}
@@ -1138,35 +1307,38 @@ const AioConfigForm: React.FC<AioConfigFormProps> = ({ config, sourcePath, botId
                                             </select>
                                         </Field>
                                         <Field label={t('aio.task.intervalsSecond')}>
-                                            <input className="aio-input" type="number" value={task.intervals_second} onChange={(event) => updateTask(index, (current) => ({ ...current, intervals_second: event.target.value }))} />
+                                            <input className="aio-input" type="number" value={selectedTask.intervals_second} onChange={(event) => updateTask(selectedTaskIndex, (current) => ({ ...current, intervals_second: event.target.value }))} />
                                         </Field>
                                         <Field label={t('aio.task.beginTime')}>
-                                            <input className="aio-input" value={task.begin_time} onChange={(event) => updateTask(index, (current) => ({ ...current, begin_time: event.target.value }))} />
+                                            <input className="aio-input" value={selectedTask.begin_time} onChange={(event) => updateTask(selectedTaskIndex, (current) => ({ ...current, begin_time: event.target.value }))} />
                                         </Field>
                                         <Field label={t('aio.task.endTime')}>
-                                            <input className="aio-input" value={task.end_time} onChange={(event) => updateTask(index, (current) => ({ ...current, end_time: event.target.value }))} />
+                                            <input className="aio-input" value={selectedTask.end_time} onChange={(event) => updateTask(selectedTaskIndex, (current) => ({ ...current, end_time: event.target.value }))} />
                                         </Field>
                                         <Field label={t('aio.task.dynamicCheck')}>
-                                            <Switch checked={task.enable_dynamic_check} onChange={(checked) => updateTask(index, (current) => ({ ...current, enable_dynamic_check: checked }))} />
+                                            <Switch checked={selectedTask.enable_dynamic_check} onChange={(checked) => updateTask(selectedTaskIndex, (current) => ({ ...current, enable_dynamic_check: checked }))} />
                                         </Field>
                                         <Field label={t('aio.task.livingCheck')}>
-                                            <Switch checked={task.enable_living_check} onChange={(checked) => updateTask(index, (current) => ({ ...current, enable_living_check: checked }))} />
+                                            <Switch checked={selectedTask.enable_living_check} onChange={(checked) => updateTask(selectedTaskIndex, (current) => ({ ...current, enable_living_check: checked }))} />
                                         </Field>
                                         <Field label={t('aio.task.skipForward')}>
-                                            <Switch checked={task.skip_forward} onChange={(checked) => updateTask(index, (current) => ({ ...current, skip_forward: checked }))} />
+                                            <Switch checked={selectedTask.skip_forward} onChange={(checked) => updateTask(selectedTaskIndex, (current) => ({ ...current, skip_forward: checked }))} />
                                         </Field>
-                                        <ListEditor
+                                        <PushChannelSelector
                                             label={t('aio.task.targetPushNames')}
-                                            value={task.target_push_name_list}
-                                            onChange={(next) => updateTask(index, (current) => ({ ...current, target_push_name_list: next }))}
+                                            channels={enabledPushChannels}
+                                            value={selectedTask.target_push_name_list}
+                                            onChange={(next) => updateTask(selectedTaskIndex, (current) => ({ ...current, target_push_name_list: next }))}
+                                            hint={t('aio.task.targetPushHint')}
+                                            emptyText={t('aio.task.noEnabledPushChannels')}
                                         />
                                     </div>
-                                    <div className="aio-field-grid">{renderTaskSpecificFields(task, index)}</div>
+                                    <div className="aio-field-grid">{renderTaskSpecificFields(selectedTask, selectedTaskIndex)}</div>
                                 </div>
-                            ) : null}
+                            ) : <div className="aio-collapsed-note">{t('aio.taskCollapsedHint')}</div>}
                         </div>
-                    ))}
-                </div>
+                    </div>
+                ) : null}
             </section>
 
             <section className="aio-section">
@@ -1178,40 +1350,44 @@ const AioConfigForm: React.FC<AioConfigFormProps> = ({ config, sourcePath, botId
                     <button
                         className="btn btn-ghost"
                         type="button"
-                        onClick={() =>
-                            setDraft((current) => ({
-                                ...current,
-                                push_channel: [
-                                    ...current.push_channel,
-                                    normalizePushChannel({
-                                        name: '',
-                                        enable: false,
-                                        type: 'bark',
-                                    }),
-                                ],
-                            }))
-                        }
+                        onClick={addChannel}
                     >
                         {t('aio.addChannel')}
                     </button>
                 </div>
 
-                <div className="aio-stack">
-                    {draft.push_channel.map((channel, index) => (
-                        <div className="aio-item-card" key={`${index}-${channel.name}`}>
+                {draft.push_channel.length ? (
+                    <div className="aio-entity-picker">
+                        <label className="aio-field-label" htmlFor="aio-channel-picker">{t('aio.selectChannel')}</label>
+                        <select
+                            id="aio-channel-picker"
+                            className="aio-input aio-entity-select"
+                            value={selectedChannelIndex}
+                            onChange={(event) => setSelectedChannelIndex(Number(event.target.value))}
+                        >
+                            {draft.push_channel.map((channel, index) => (
+                                <option key={index} value={index}>
+                                    {itemName(channel.name, t('aio.channelItem'), index)} · {channel.type} · {itemStatusLabel(channel.enable)}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                ) : <div className="aio-empty-inline">{t('aio.noChannels')}</div>}
+
+                {selectedChannel ? (
+                    <div className="aio-stack">
+                        <div className="aio-item-card" key={selectedChannelIndex}>
                             <div className="aio-item-header">
-                                <strong>
-                                    {t('aio.channelItem')} {index + 1}
-                                </strong>
+                                <div className="aio-selected-item-title">
+                                    <strong>{itemName(selectedChannel.name, t('aio.channelItem'), selectedChannelIndex)}</strong>
+                                    <span className={`aio-enable-badge ${selectedChannel.enable ? 'is-enabled' : 'is-disabled'}`}>
+                                        {itemStatusLabel(selectedChannel.enable)}
+                                    </span>
+                                </div>
                                 <button
                                     type="button"
                                     className="btn btn-ghost"
-                                    onClick={() =>
-                                        setDraft((current) => ({
-                                            ...current,
-                                            push_channel: current.push_channel.filter((_, itemIndex) => itemIndex !== index),
-                                        }))
-                                    }
+                                    onClick={() => removeChannel(selectedChannelIndex)}
                                 >
                                     {t('aio.remove')}
                                 </button>
@@ -1219,13 +1395,13 @@ const AioConfigForm: React.FC<AioConfigFormProps> = ({ config, sourcePath, botId
 
                             <div className="aio-field-grid">
                                 <Field label={t('aio.channel.name')}>
-                                    <input className="aio-input" value={channel.name} onChange={(event) => updateChannel(index, (current) => ({ ...current, name: event.target.value }))} />
+                                    <input className="aio-input" value={selectedChannel.name} onChange={(event) => updateChannel(selectedChannelIndex, (current) => ({ ...current, name: event.target.value }))} />
                                 </Field>
                                 <Field label={t('aio.channel.enable')}>
-                                    <Switch checked={channel.enable} onChange={(checked) => updateChannel(index, (current) => ({ ...current, enable: checked }))} />
+                                    <Switch checked={selectedChannel.enable} onChange={(checked) => updateChannel(selectedChannelIndex, (current) => ({ ...current, enable: checked }))} />
                                 </Field>
                                 <Field label={t('aio.channel.type')}>
-                                    <select className="aio-input" value={channel.type} onChange={(event) => updateChannel(index, (current) => ({ ...current, type: event.target.value }))}>
+                                    <select className="aio-input" value={selectedChannel.type} onChange={(event) => updateChannel(selectedChannelIndex, (current) => ({ ...current, type: event.target.value }))}>
                                         {channelTypes.map((type) => (
                                             <option key={type} value={type}>
                                                 {type}
@@ -1240,15 +1416,15 @@ const AioConfigForm: React.FC<AioConfigFormProps> = ({ config, sourcePath, botId
                                     <div>
                                         <div className="section-copy">{t('aio.channel.advanced')}</div>
                                         <div className="section-title" style={{ marginBottom: 0 }}>
-                                            {channel.type}
+                                            {selectedChannel.type}
                                         </div>
                                     </div>
                                 </div>
-                                <div className="aio-field-grid">{renderChannelSpecificFields(channel, index)}</div>
+                                <div className="aio-field-grid">{renderChannelSpecificFields(selectedChannel, selectedChannelIndex)}</div>
                             </div>
                         </div>
-                    ))}
-                </div>
+                    </div>
+                ) : null}
             </section>
 
             {error ? <div className="empty-state">{error}</div> : null}

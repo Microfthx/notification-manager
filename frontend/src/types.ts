@@ -40,3 +40,26 @@ export interface WeiboSessionStatus {
     message: string;
     qrLogin: WeiboQrLoginStatus;
 }
+
+export type NapCatState = 'checking' | 'online' | 'offline' | 'unavailable';
+export type NapCatQrState = 'idle' | 'restarting' | 'waiting' | 'scanned' | 'success' | 'expired' | 'error';
+
+export interface NapCatStatus {
+    enabled: boolean;
+    state: NapCatState;
+    online: boolean;
+    good: boolean;
+    accountId: string | null;
+    nickname: string | null;
+    version: string | null;
+    lastCheckAt: string | null;
+    lastOnlineAt: string | null;
+    consecutiveFailures: number;
+    message: string;
+    qrLogin: {
+        state: NapCatQrState;
+        imageDataUrl: string | null;
+        expiresAt: string | null;
+        message: string;
+    };
+}
