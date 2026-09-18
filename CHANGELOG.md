@@ -1,5 +1,15 @@
 # 更新日志
 
+## v0.3.0 - 2026-09-18
+
+### 可复现部署
+
+- 新增 `scripts/deploy.sh`，可从管理仓库自动拉取 AIO 运行代码、初始化本地环境并构建启动服务。
+- AIO 配置模板改用仓库内脱敏的 `config.example.yml`，不再依赖未跟踪的 `config copy.yml`。
+- AIO 项目目录、仓库地址和 NapCat 配置目录均支持通过 `.env` 配置。
+- 未安装 NapCat 时使用空的本地配置目录，不再阻止管理页面和其他通道启动。
+- 明确运行时机器人、Cookie、浏览器档案和 NapCat Token 不纳入 Git。
+
 ## v0.2.0 - 2026-09-18
 
 ### NapCat QQ 管理

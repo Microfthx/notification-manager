@@ -21,7 +21,7 @@
 - 机器人：后端通过 Python 启动相邻的 `aio-dynamic-push-master/main.py`。
 - 微博会话：后端容器内的 Chromium 持久档案保存在 `data/weibo-profile/`。
 
-项目默认要求目录结构如下：
+一键部署脚本会自动补齐 AIO 仓库，最终目录结构如下：
 
 ```text
 TeamWebsite/
@@ -31,7 +31,28 @@ TeamWebsite/
 
 ## 启动
 
-1. 创建本地环境文件：
+### 一键部署
+
+只需克隆管理仓库并运行部署脚本：
+
+```bash
+git clone git@github.com:Microfthx/notification-manager.git
+cd notification-manager
+./scripts/deploy.sh
+```
+
+脚本会自动完成以下操作：
+
+- 根据当前用户生成 `.env` 和 UID/GID。
+- 在相邻目录克隆 `aio-dynamic-push-personal`（已存在时不会覆盖或修改）。
+- 创建运行目录及示例机器人管理配置。
+- 校验 Compose 配置，构建并启动前后端。
+
+部署成功后打开 `http://localhost:10010`。首次创建或使用机器人时，需要在页面填写任务、推送通道、Cookie 等私有配置。
+
+### 自定义部署
+
+1. 需要修改仓库地址或目录时，先创建本地环境文件：
 
    ```bash
    cp .env.example .env
@@ -41,19 +62,27 @@ TeamWebsite/
 
 2. 在 `.env` 中填写宿主机用户 UID/GID。
 
-3. 首次运行时创建示例机器人管理配置：
+3. NapCat 已安装时，在 `.env` 中填写它的配置目录：
+
+   ```dotenv
+   NAPCAT_CONFIG_DIR=/absolute/path/to/napcat/config
+   ```
+
+   未安装 NapCat 时保持默认值即可，管理页面和其他推送通道仍可正常运行。
+
+4. 首次运行时创建示例机器人管理配置：
 
    ```bash
    cp bots/bot-example/config.example.yml bots/bot-example/config.yml
    ```
 
-4. 构建并启动：
+5. 构建并启动：
 
    ```bash
    docker compose up -d --build
    ```
 
-5. 打开 `http://localhost:10010`。
+6. 打开 `http://localhost:10010`。
 
 前后端容器使用 `restart: unless-stopped`。Docker 服务已启用时，宿主机重启后会自动恢复管理页面和 API。
 
@@ -65,6 +94,8 @@ TeamWebsite/
 - `aio-config.yml`：AIO 查询任务和推送通道配置，可能包含敏感 Cookie。
 
 实际机器人实例和 `aio-config.yml` 不纳入 Git。新增机器人时，管理器以 `bot-example` 为骨架创建运行目录。
+
+`bots/bot-example/bot.py` 仅为历史示例文件，不参与管理器启动流程。实际机器人统一运行 AIO 仓库中的 `main.py`，并通过 `AIO_CONFIG_PATH` 读取各机器人自己的 `aio-config.yml`。
 
 “自动拉起”开启后：
 
@@ -89,6 +120,7 @@ TeamWebsite/
 - QQ 离线时可在首页点击“扫码重新登录”。管理器调用 NapCat WebUI 的重启和登录接口，并在页面显示手机 QQ 二维码。
 - NapCat 仍由宿主机现有的 `tmux` 会话 `napcat` 托管。WebUI 重启只重启其内部工作进程，不把 NapCat 移入后端容器。
 - 后端以只读方式挂载 NapCat 的 `config/` 目录来读取 WebUI Token；Token 不写入项目配置或前端响应。
+- NapCat 本体不包含在本仓库内；新机器需要单独安装并启动 NapCat，然后设置 `NAPCAT_CONFIG_DIR`。
 
 如果 NapCat 整个宿主进程或 `tmux` 会话已经退出，WebUI 也会不可用，此时需要先在宿主机恢复 `tmux:napcat`，之后才能从页面扫码。
 

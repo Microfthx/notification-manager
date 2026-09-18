@@ -11,14 +11,15 @@ services:
       - ./bots:/workspace/notification-manager/bots
       - ./logs:/workspace/notification-manager/logs
       - ./data:/workspace/notification-manager/data
-      - ../aio-dynamic-push-master:/workspace/aio-dynamic-push-master:ro
-      - /home/hxly/Napcat/opt/QQ/resources/app/app_launcher/napcat/config:/workspace/napcat-config:ro
+      - ${AIO_PROJECT_DIR:-../aio-dynamic-push-master}:/workspace/aio-dynamic-push-master:ro
+      - ${NAPCAT_CONFIG_DIR:-./data/napcat-config}:/workspace/napcat-config:ro
     environment:
       - NODE_ENV=production
       - TZ=Asia/Shanghai
       - PORT=4000
       - PROJECT_ROOT=/workspace/notification-manager
       - AIO_PROJECT_ROOT=/workspace/aio-dynamic-push-master
+      - AIO_CONFIG_TEMPLATE_PATH=/workspace/aio-dynamic-push-master/config.example.yml
       - AIO_PYTHON_BIN=/opt/aio-venv/bin/python
       - CHROMIUM_PATH=/usr/bin/chromium
       - WEIBO_SESSION_INTERVAL_SECONDS=14400

@@ -25,7 +25,7 @@ export const aioProjectRoot = resolveConfiguredPath(
 
 export const aioConfigTemplatePath = resolveConfiguredPath(
     process.env.AIO_CONFIG_TEMPLATE_PATH,
-    path.join(aioProjectRoot, 'config copy.yml'),
+    path.join(aioProjectRoot, 'config.example.yml'),
 );
 
 export const aioMainPath = resolveConfiguredPath(

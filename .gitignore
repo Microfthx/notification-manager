@@ -11,6 +11,8 @@ frontend/node_modules/
 logs/*.log
 data/weibo-profile/*
 !data/weibo-profile/.gitkeep
+data/napcat-config/*
+!data/napcat-config/.gitkeep
 
 # Runtime bot instances and private AIO cookies are host data.
 bots/*/

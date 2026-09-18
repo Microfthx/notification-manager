@@ -1,32 +1,21 @@
 # Notification Manager Bots
 
-This directory contains example bots for the Notification Manager project. Each bot has its own configuration and implementation, allowing for easy management and customization.
+This directory contains the runtime configuration directories managed by Notification Manager.
 
 ## Bot Example
 
-The `bot-example` directory contains a sample bot that demonstrates how to set up a notification bot using the Notification Manager framework.
+The `bot-example` directory is the skeleton copied when a bot is created.
 
 ### Files
 
-- **config.yml**: This file contains the configuration options for the example bot. You can modify this file to change the bot's behavior and settings.
+- **config.example.yml**: Public template for manager settings such as `auto_start`.
 
-- **bot.py**: This is the main script for the example bot. It includes the logic and functionality that the bot will execute.
+- **config.yml**: Local manager settings. This file is generated during deployment and is not committed.
 
-- **requirements.txt**: This file lists the Python dependencies required to run the example bot. Make sure to install these dependencies before running the bot.
+- **aio-config.yml**: Local AIO task/channel configuration. It can contain cookies and credentials and is not committed.
+
+- **bot.py** and **requirements.txt**: Legacy example files. Notification Manager does not execute them.
 
 ## Usage
 
-To use the example bot, follow these steps:
-
-1. Navigate to the `bot-example` directory.
-2. Modify the `config.yml` file to suit your needs.
-3. Install the required dependencies using the command:
-   ```
-   pip install -r requirements.txt
-   ```
-4. Run the bot using the command:
-   ```
-   python bot.py
-   ```
-
-Feel free to explore and modify the example bot to create your own notification bots!
+Bots are started by the backend with `aio-dynamic-push/main.py`. Use the web interface to create bots and edit their AIO configuration instead of running `bot.py` directly.
