@@ -1,4 +1,6 @@
 .env
+.env.instance*
+instances/
 *.tmp
 *.pyc
 __pycache__/

@@ -86,6 +86,32 @@ cd notification-manager
 
 前后端容器使用 `restart: unless-stopped`。Docker 服务已启用时，宿主机重启后会自动恢复管理页面和 API。
 
+## 多实例
+
+每个实例需要独立的前端端口、后端端口以及机器人、日志和数据目录。例如第二实例的本地环境文件可以设置为：
+
+```dotenv
+BACKEND_PORT=4002
+FRONTEND_PORT=10011
+BOTS_DIR=./instances/second/bots
+LOGS_DIR=./instances/second/logs
+DATA_DIR=./instances/second/data
+```
+
+使用独立 Compose 项目名启动：
+
+```bash
+./scripts/deploy-instance.sh .env.instance2 notification-manager-2
+```
+
+停止第二实例：
+
+```bash
+docker compose --env-file .env.instance2 -p notification-manager-2 down
+```
+
+实例环境文件和 `instances/` 运行数据均被 Git 忽略。各实例容器使用 `restart: unless-stopped`，会随 Docker 服务自动恢复。
+
 ## 机器人配置
 
 每个运行时机器人位于 `bots/<bot-id>/`：

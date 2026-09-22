@@ -8,15 +8,15 @@ services:
     user: "${NOTIFICATION_MANAGER_UID:-1000}:${NOTIFICATION_MANAGER_GID:-1000}"
     volumes:
       - ./backend/src:/usr/src/app/src
-      - ./bots:/workspace/notification-manager/bots
-      - ./logs:/workspace/notification-manager/logs
-      - ./data:/workspace/notification-manager/data
+      - ${BOTS_DIR:-./bots}:/workspace/notification-manager/bots
+      - ${LOGS_DIR:-./logs}:/workspace/notification-manager/logs
+      - ${DATA_DIR:-./data}:/workspace/notification-manager/data
       - ${AIO_PROJECT_DIR:-../aio-dynamic-push-master}:/workspace/aio-dynamic-push-master:ro
       - ${NAPCAT_CONFIG_DIR:-./data/napcat-config}:/workspace/napcat-config:ro
     environment:
       - NODE_ENV=production
       - TZ=Asia/Shanghai
-      - PORT=4000
+      - PORT=${BACKEND_PORT:-4000}
       - PROJECT_ROOT=/workspace/notification-manager
       - AIO_PROJECT_ROOT=/workspace/aio-dynamic-push-master
       - AIO_CONFIG_TEMPLATE_PATH=/workspace/aio-dynamic-push-master/config.example.yml
@@ -36,12 +36,12 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "10010:10010"
+      - "${FRONTEND_PORT:-10010}:10010"
     restart: unless-stopped
     volumes:
       - ./frontend/src:/app/src
     environment:
-      - API_PROXY_TARGET=http://host.docker.internal:4000
+      - API_PROXY_TARGET=http://host.docker.internal:${BACKEND_PORT:-4000}
       - TZ=Asia/Shanghai
     extra_hosts:
       - "host.docker.internal:host-gateway"
