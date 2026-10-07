@@ -149,6 +149,15 @@ docker compose --env-file .env.instance2 -p notification-manager-2 down
 - 后端以只读方式挂载 NapCat 的 `config/` 目录来读取 WebUI Token；Token 不写入项目配置或前端响应。
 - NapCat 本体不包含在本仓库内；新机器需要单独安装并启动 NapCat，然后设置 `NAPCAT_CONFIG_DIR`。
 - 微博正文中的 `[允悲]`、`[doge]` 等自定义表情会使用 `LingYanSi/weibo-emoji` 的固定版本资源转换为 OneBot 图片段；不在资源库中的表情保留原文字，不会被删除。
+- 管理器优先使用 `assets/icon/` 中的完整静态表情库。该目录由微博开放 API 和微博前端清单合并生成，并保留已经归档的本地表情。
+
+更新微博静态表情库：
+
+```bash
+./scripts/sync-weibo-emoji.py
+```
+
+同步脚本只接受官方返回的 PNG，下载后统一转换为 `36×36`，并保留官方清单之外的本地历史表情。需要宿主机安装 ImageMagick 的 `convert` 命令。
 
 如果 NapCat 整个宿主进程或 `tmux` 会话已经退出，WebUI 也会不可用，此时需要先在宿主机恢复 `tmux:napcat`，之后才能从页面扫码。
 

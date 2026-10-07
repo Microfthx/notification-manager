@@ -11,6 +11,7 @@ services:
       - ${BOTS_DIR:-./bots}:/workspace/notification-manager/bots
       - ${LOGS_DIR:-./logs}:/workspace/notification-manager/logs
       - ${DATA_DIR:-./data}:/workspace/notification-manager/data
+      - ${ASSETS_DIR:-./assets}:/workspace/notification-manager/assets:ro
       - ${AIO_PROJECT_DIR:-../aio-dynamic-push-master}:/workspace/aio-dynamic-push-master:ro
       - ${NAPCAT_CONFIG_DIR:-./data/napcat-config}:/workspace/napcat-config:ro
     environment:
@@ -21,6 +22,7 @@ services:
       - AIO_PROJECT_ROOT=/workspace/aio-dynamic-push-master
       - AIO_CONFIG_TEMPLATE_PATH=/workspace/aio-dynamic-push-master/config.example.yml
       - AIO_PYTHON_BIN=/opt/aio-venv/bin/python
+      - WEIBO_EMOJI_ROOT=/workspace/notification-manager/assets/icon
       - CHROMIUM_PATH=/usr/bin/chromium
       - WEIBO_SESSION_INTERVAL_SECONDS=14400
       - WEIBO_SESSION_INITIAL_DELAY_SECONDS=60
