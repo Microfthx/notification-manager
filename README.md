@@ -10,6 +10,7 @@
 - 持久化微博浏览器会话，定时同步 Cookie。
 - 使用微博 App 扫码恢复登录。
 - 查看 NapCat QQ 的真实在线/发送状态，并使用手机 QQ 扫码恢复登录。
+- NapCat QQ 推送可将微博自定义表情按正文顺序输出为图片。
 - NapCat 连续离线时通过已启用的非 NapCat 通道限频告警。
 - 为指定机器人开启“自动拉起”，异常退出或后端重启后自动恢复。
 - 中英文界面和移动端适配。
@@ -44,7 +45,7 @@ cd notification-manager
 脚本会自动完成以下操作：
 
 - 根据当前用户生成 `.env` 和 UID/GID。
-- 在相邻目录克隆 `aio-dynamic-push-personal`（已存在时不会覆盖或修改）。
+- 在相邻目录克隆 `aio-dynamic-push-personal` 及其微博表情资源子模块（已存在时不会覆盖源代码）。
 - 创建运行目录及示例机器人管理配置。
 - 校验 Compose 配置，构建并启动前后端。
 
@@ -147,6 +148,7 @@ docker compose --env-file .env.instance2 -p notification-manager-2 down
 - NapCat 仍由宿主机现有的 `tmux` 会话 `napcat` 托管。WebUI 重启只重启其内部工作进程，不把 NapCat 移入后端容器。
 - 后端以只读方式挂载 NapCat 的 `config/` 目录来读取 WebUI Token；Token 不写入项目配置或前端响应。
 - NapCat 本体不包含在本仓库内；新机器需要单独安装并启动 NapCat，然后设置 `NAPCAT_CONFIG_DIR`。
+- 微博正文中的 `[允悲]`、`[doge]` 等自定义表情会使用 `LingYanSi/weibo-emoji` 的固定版本资源转换为 OneBot 图片段；不在资源库中的表情保留原文字，不会被删除。
 
 如果 NapCat 整个宿主进程或 `tmux` 会话已经退出，WebUI 也会不可用，此时需要先在宿主机恢复 `tmux:napcat`，之后才能从页面扫码。
 

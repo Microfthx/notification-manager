@@ -53,13 +53,16 @@ if [[ ! -d "$AIO_PROJECT_DIR/.git" ]]; then
     exit 1
   fi
   rm -rf "$AIO_PROJECT_DIR"
-  git clone "$AIO_REPOSITORY" "$AIO_PROJECT_DIR"
+  git clone --recurse-submodules "$AIO_REPOSITORY" "$AIO_PROJECT_DIR"
 fi
 
 if [[ ! -f "$AIO_PROJECT_DIR/main.py" || ! -f "$AIO_PROJECT_DIR/config.example.yml" ]]; then
   echo "Error: invalid AIO project at $AIO_PROJECT_DIR" >&2
   exit 1
 fi
+
+git -C "$AIO_PROJECT_DIR" submodule sync --recursive
+git -C "$AIO_PROJECT_DIR" submodule update --init --recursive
 
 mkdir -p "$PROJECT_DIR/logs" "$PROJECT_DIR/data/weibo-profile" "$NAPCAT_CONFIG_DIR"
 

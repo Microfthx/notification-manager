@@ -53,6 +53,9 @@ if [[ ! -f "$AIO_PROJECT_DIR/main.py" || ! -f "$AIO_PROJECT_DIR/config.example.y
   exit 1
 fi
 
+git -C "$AIO_PROJECT_DIR" submodule sync --recursive
+git -C "$AIO_PROJECT_DIR" submodule update --init --recursive
+
 mkdir -p "$BOTS_DIR/bot-example" "$LOGS_DIR" "$DATA_DIR/weibo-profile" "$DATA_DIR/napcat-config"
 
 for template_file in config.example.yml bot.py requirements.txt; do
